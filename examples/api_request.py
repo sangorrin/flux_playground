@@ -31,8 +31,8 @@ class Args(BaseModel):
     ''').strip()  # Description of the visual transformation to apply to the input image
     aspect_ratio: str = "3:6"  # Desired output image aspect ratio, e.g., "1:1", "3:4"
     seed: Optional[int] = None  # Random seed for reproducibility (optional)
-    prompt_upsampling: bool = True  # Enables enhanced text interpretation if True
-    safety_tolerance: int = 2  # Controls moderation: 0 = strict, 2 = relaxed
+    prompt_upsampling: bool = False  #  If True, modifies the prompt for more creative generation.
+    safety_tolerance: int = 0  # Between 0 and 6, 0 being most strict, 6 being least strict.
     output_format: str = "jpeg"  # Output file format: "jpeg" or "png"
     timeout: int = 60  # Time (in seconds) to poll the result before giving up
 

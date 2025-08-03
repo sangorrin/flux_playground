@@ -7,7 +7,6 @@ https://dashboard.bfl.ai/
 https://playground.bfl.ai/
 https://bfl.ai/pricing/api
 https://docs.bfl.ai/quick_start/introduction
-
 https://huggingface.co/black-forest-labs
 
 Civitai
