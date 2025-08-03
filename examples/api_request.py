@@ -29,7 +29,7 @@ class Args(BaseModel):
         The background should be plain or minimal to emphasize the character.
         Studio-quality comic illustration. No colors, no greyscale, just pure black ink on white background.
     ''').strip()  # Description of the visual transformation to apply to the input image
-    aspect_ratio: str = "3:4"  # Desired output image aspect ratio, e.g., "1:1", "3:4"
+    aspect_ratio: str = "3:6"  # Desired output image aspect ratio, e.g., "1:1", "3:4"
     seed: Optional[int] = None  # Random seed for reproducibility (optional)
     prompt_upsampling: bool = True  # Enables enhanced text interpretation if True
     safety_tolerance: int = 2  # Controls moderation: 0 = strict, 2 = relaxed
@@ -97,6 +97,7 @@ def edit_image(args: Args):
                 with open(args.output_image, 'wb') as f:
                     f.write(image_data)
                 print(f"Image saved to {args.output_image}")
+                print(f"Seed: {result['result']['seed']}")
                 break
 
             if result['status'] in ['Error', 'Failed']:
