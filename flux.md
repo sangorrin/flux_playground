@@ -9,14 +9,31 @@ https://bfl.ai/pricing/api
 https://docs.bfl.ai/quick_start/introduction
 https://huggingface.co/black-forest-labs
 
+Copainter
+https://www.copainter.ai/en
+
+Frameplanner
+https://frameplanner-e5569.web.app/
+
+Octocomics
+https://www.animeshorts.ai/ai-generator/comic
+https://piyo-piyo-piyo.com/14168/
+
 Civitai
 https://civitai.com/models
 
-Flux-AI
-https://flux-ai.io/
+TensorArt
+https://tensor.art/
+
+OpemArt
+https://openart.ai/
+
+SeaArt
+https://www.seaart.ai/es
 
 Comfy UI
 https://www.comfy.org/
+https://www.ipentec.com/document/ai-image/flux-1-kontext-inking-from-lineart
 
 RunPod
 https://www.runpod.io
