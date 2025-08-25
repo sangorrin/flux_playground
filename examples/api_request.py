@@ -27,22 +27,25 @@ class Args(BaseModel):
         The character stands in a neutral pose, clearly visible from head to toe,
         with careful attention to anatomy, folds in the clothing, and realistic proportions.
         The background should be plain or minimal to emphasize the character.
-        Studio-quality comic illustration. No colors, no greyscale, just pure black ink on white background.
+        Manga style, monochrome, bold brush strokes, simplified hair details.
     ''').strip()  # Description of the visual transformation to apply to the input image
     aspect_ratio: str = "3:6"  # Desired output image aspect ratio, e.g., "1:1", "3:4"
     seed: Optional[int] = None  # Random seed for reproducibility (optional)
-    prompt_upsampling: bool = False  #  If True, modifies the prompt for more creative generation.
-    safety_tolerance: int = 0  # Between 0 and 6, 0 being most strict, 6 being least strict.
+    prompt_upsampling: bool = True  #  If True, modifies the prompt for more creative generation.
+    safety_tolerance: int = 6  # Between 0 and 6, 0 being most strict, 6 being least strict.
     output_format: str = "jpeg"  # Output file format: "jpeg" or "png"
     timeout: int = 60  # Time (in seconds) to poll the result before giving up
 
 def edit_image(args: Args):
     """Sends image editing request to Flux API and polls for result."""
     # Load and encode image
-    image = Image.open(args.input_image)
-    buffered = BytesIO()
-    image.save(buffered, format="JPEG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
+    # image = Image.open(args.input_image)
+    # buffered = BytesIO()
+    # image.save(buffered, format="JPEG")
+    # img_str = base64.b64encode(buffered.getvalue()).decode()
+    with open(args.input_image, "rb") as f:
+        img_bytes = f.read()
+    img_str = base64.b64encode(img_bytes).decode()
 
     # Make initial request
     try:
