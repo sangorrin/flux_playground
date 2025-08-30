@@ -2,6 +2,8 @@ Flux
 
 # References
 
+## AI API services
+
 Black Forest Labs
 https://dashboard.bfl.ai/
 https://playground.bfl.ai/
@@ -9,15 +11,23 @@ https://bfl.ai/pricing/api
 https://docs.bfl.ai/quick_start/introduction
 https://huggingface.co/black-forest-labs
 
+## Serverless GPU
+
+RunPod
+https://www.runpod.io
+https://www.runpod.io/articles/guides/top-serverless-gpu-clouds
+
+Fal
+https://fal.ai/
+
+Comfy UI
+https://www.comfy.org/
+https://www.ipentec.com/document/ai-image/flux-1-kontext-inking-from-lineart
+
+## Illustration services
+
 Copainter
 https://www.copainter.ai/en
-
-Frameplanner
-https://frameplanner-e5569.web.app/
-
-Octocomics
-https://www.animeshorts.ai/ai-generator/comic
-https://piyo-piyo-piyo.com/14168/
 
 Civitai
 https://civitai.com/models
@@ -25,21 +35,21 @@ https://civitai.com/models
 TensorArt
 https://tensor.art/
 
-OpemArt
+OpenArt
 https://openart.ai/
 
 SeaArt
 https://www.seaart.ai/es
 
-Comfy UI
-https://www.comfy.org/
-https://www.ipentec.com/document/ai-image/flux-1-kontext-inking-from-lineart
+## Manga Creator platforms
 
-RunPod
-https://www.runpod.io
+Frameplanner
+https://manga-farm.online/
+https://frameplanner-e5569.web.app/
 
-Fal
-https://fal.ai/
+Octocomics
+https://www.animeshorts.ai/ai-generator/comic
+https://piyo-piyo-piyo.com/14168/
 
 # BFL API
 
