@@ -10,8 +10,6 @@ Env:
 
 Usage:
   python burn_fix_cli.py --input-image img/quemada.png \
-                         --prompt "blue sky with light clouds" \
-                         --output-image fixed.jpg \
                          --save-debug-mask seed_mask.png
 """
 # pylint: disable=no-member
@@ -37,42 +35,60 @@ from argdantic import ArgParser
 
 def build_seed_mask(
     rgb: np.ndarray,
-    th_chan: float = 0.985,
-    th_luma: float = 0.975,
+    th_chan: float = 0.97,   # was 0.985
+    th_luma: float = 0.96,   # was 0.975
     kernel_sz: int = 5,
     min_area: int = 150,
+    expand_px: int = 18,     # NEW: expand mask outward
+    feather_px: int = 3,     # NEW: light blur to smooth edges (for preview; we still send binary)
 ) -> np.ndarray:
     """
-    Create a high-recall mask for clipped whites (burned highlights).
-    Returns a uint8 mask where 255 = region to inpaint (burned), 0 = keep.
+    Create an aggressive mask for blown-out/near-blown highlights.
+    255 = EDIT (to fill), 0 = KEEP.
     """
-    # sRGB [0,255] -> [0,1] float
     srgb = rgb.astype(np.float32) / 255.0
-    # approx inverse gamma to linearize (good enough for thresholding)
     linear = np.power(np.clip(srgb, 0, 1), 2.2)
 
-    # Luminance (BT.709)
     luminance = 0.2126 * linear[..., 0] + 0.7152 * linear[..., 1] + 0.0722 * linear[..., 2]
 
-    # High-recall seed: any channel near 1.0 OR luminance near 1.0
+    # seed: any channel near 1 OR high luminance  OR very low local contrast (halo)
     near_white_any = (linear[..., 0] >= th_chan) | \
                      (linear[..., 1] >= th_chan) | \
                      (linear[..., 2] >= th_chan)
     near_white_luma = luminance >= th_luma
-    seed = (near_white_any | near_white_luma).astype(np.uint8) * 255
 
-    # Morphological cleanup
+    # bonus: pixels that are bright AND low-gradient (typical bloom around the sun/sky)
+    gx = cv2.Sobel((luminance*255).astype(np.uint8), cv2.CV_16S, 1, 0, ksize=3)
+    gy = cv2.Sobel((luminance*255).astype(np.uint8), cv2.CV_16S, 0, 1, ksize=3)
+    grad = cv2.convertScaleAbs(cv2.addWeighted(cv2.absdiff(gx, 0), 1, cv2.absdiff(gy, 0), 1, 0))
+    low_texture = grad < 6  # tweak if needed
+
+    seed = (near_white_any | near_white_luma | (low_texture & (luminance > 0.90))).astype(np.uint8) * 255
+
+    # Morphology
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_sz, kernel_sz))
     seed = cv2.morphologyEx(seed, cv2.MORPH_CLOSE, k, iterations=1)
-    seed = cv2.morphologyEx(seed, cv2.MORPH_OPEN, k, iterations=1)
+    seed = cv2.morphologyEx(seed, cv2.MORPH_OPEN,  k, iterations=1)
 
-    # Remove tiny blobs
+    # Remove tiny specks
     n, labels, stats, _ = cv2.connectedComponentsWithStats(seed, connectivity=8)
     mask = np.zeros_like(seed)
-    for i in range(1, n):  # 0 is background
+    for i in range(1, n):
         if stats[i, cv2.CC_STAT_AREA] >= min_area:
             mask[labels == i] = 255
 
+    # Distance-based expansion (stronger than fixed dilate)
+    inv = (mask == 0).astype(np.uint8)
+    dist = cv2.distanceTransform(inv, cv2.DIST_L2, 3)
+    # Pixels within 'expand_px' of current foreground become foreground
+    expand = (dist <= expand_px).astype(np.uint8) * 255
+    mask = cv2.bitwise_or(mask, expand)
+
+    if feather_px > 0:
+        mask = cv2.GaussianBlur(mask, (0, 0), feather_px)
+
+    # Ensure binary for the API (Flux Fill expects binary mask; 255 = edit)
+    _, mask = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY)
     return mask
 
 
@@ -99,10 +115,8 @@ class Args(BaseModel):
     output_image: str = Field("output.jpg", description="Where to save the final image")
     prompt: str = Field(
         textwrap.dedent("""
-            Recover realistic detail in blown-out white areas while keeping the rest of the
-            image intact. If the mask covers sky, recreate a natural blue sky with subtle
-            clouds matching scene lighting and perspective. If the mask touches fabric or
-            walls, generate plausible texture and shading coherent with nearby edges.
+            Fix clipped highlights in this photo using the provided mask.
+            Make skies light blue and match surrounding colors.
         """).strip(),
         description="Text guidance for Flux Fill",
     )
@@ -112,9 +126,9 @@ class Args(BaseModel):
     kernel_sz: int = 5
     min_area: int = 150
     # BFL generation knobs
-    steps: int = 40
-    guidance: int = 20
-    output_format: str = "jpeg"  # "jpeg" or "png"
+    steps: int = 50
+    guidance: int = 80
+    output_format: str = "png"  # "jpeg" or "png"
     timeout: int = 90            # seconds to poll before giving up
     save_debug_mask: Optional[str] = None  # e.g. "seed_mask.png"
 
