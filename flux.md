@@ -41,6 +41,9 @@ https://openart.ai/
 SeaArt
 https://www.seaart.ai/es
 
+Artlist
+https://artlist.io/
+
 ## Manga Creator platforms
 
 Frameplanner
