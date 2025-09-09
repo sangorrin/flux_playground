@@ -2,13 +2,12 @@
 # Split comic pages into panel crops using gutters (white margins) only.
 # Output: a flat dataset folder with sequential files 0001.jpg, 0002.jpg, ...
 # Optional: save debug pages with red rectangles to a separate folder.
+# Now with **border trimming inside the black frame** so the dataset
+# doesn't include the outer white nor the black stroke.
 #
 # Usage examples:
 #   python juillard_panels_v3.py \
-#       "./pages" -o dataset --square --debug
-#
-#   python juillard_panels_v3.py \
-#       "page001.jpg" -o dataset --start 101 --jpg-quality 92 --debug
+#       "./pages" -o dataset --debug
 
 import cv2
 import numpy as np
@@ -76,6 +75,94 @@ def merge_overlaps(boxes, iou_thresh=0.20):
 
 def order_reading(boxes, bucket=60):  # row → column ordering
     return sorted(boxes, key=lambda r: (round(r[1] / bucket) * bucket, r[0]))
+
+
+# ---------- precise border trim inside the black frame ----------
+def trim_inside_frame(bgr, band_pct=0.12, black_thr=None, min_frac=0.20):
+    """Return the image cropped *inside* the black rectangular frame.
+    Strategy: look for the strongest dark line in a band near each edge
+    (top/bottom/left/right) and crop just inside it. Robust to broken corners.
+
+    band_pct: portion of width/height to search from each side (0.12 ≈ 12%).
+    black_thr: gray threshold for "black". If None, use Otsu-derived.
+    min_frac: minimal fraction of dark pixels in that band to accept a line.
+    """
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    H, W = gray.shape
+
+    if black_thr is None:
+        otsu, _ = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # be a bit stricter than Otsu to catch the printed stroke
+        black = (gray <= int(otsu * 0.9)).astype(np.uint8)
+    else:
+        black = (gray <= int(black_thr)).astype(np.uint8)
+
+    y0, y1 = int(0.05 * H), int(0.95 * H)
+    x0, x1 = int(0.05 * W), int(0.95 * W)
+    band_x = max(6, int(W * band_pct))
+    band_y = max(6, int(H * band_pct))
+
+    # left
+    cols_left = black[y0:y1, :band_x].mean(axis=0)
+    li = int(np.argmax(cols_left)); lval = cols_left[li]
+    if lval < min_frac:
+        return bgr  # can't find a strong frame; fail safe
+    l_lo = li
+    while l_lo - 1 >= 0 and cols_left[l_lo - 1] > lval * 0.5:
+        l_lo -= 1
+    l_hi = li
+    while l_hi + 1 < cols_left.size and cols_left[l_hi + 1] > lval * 0.5:
+        l_hi += 1
+    left_in = l_hi + 1
+
+    # right
+    cols_right = black[y0:y1, W - band_x : W].mean(axis=0)
+    ri = int(np.argmax(cols_right)); rval = cols_right[ri]
+    if rval < min_frac:
+        return bgr
+    r_lo = ri
+    while r_lo - 1 >= 0 and cols_right[r_lo - 1] > rval * 0.5:
+        r_lo -= 1
+    r_hi = ri
+    while r_hi + 1 < cols_right.size and cols_right[r_hi + 1] > rval * 0.5:
+        r_hi += 1
+    right_in = (W - band_x) + r_lo - 1
+
+    # top
+    rows_top = black[:band_y, x0:x1].mean(axis=1)
+    ti = int(np.argmax(rows_top)); tval = rows_top[ti]
+    if tval < min_frac:
+        return bgr
+    t_lo = ti
+    while t_lo - 1 >= 0 and rows_top[t_lo - 1] > tval * 0.5:
+        t_lo -= 1
+    t_hi = ti
+    while t_hi + 1 < rows_top.size and rows_top[t_hi + 1] > tval * 0.5:
+        t_hi += 1
+    top_in = t_hi + 1
+
+    # bottom
+    rows_bot = black[H - band_y : H, x0:x1].mean(axis=1)
+    bi = int(np.argmax(rows_bot)); bval = rows_bot[bi]
+    if bval < min_frac:
+        return bgr
+    b_lo = bi
+    while b_lo - 1 >= 0 and rows_bot[b_lo - 1] > bval * 0.5:
+        b_lo -= 1
+    b_hi = bi
+    while b_hi + 1 < rows_bot.size and rows_bot[b_hi + 1] > bval * 0.5:
+        b_hi += 1
+    bottom_in = (H - band_y) + b_lo - 1
+
+    left_in = max(0, left_in)
+    top_in = max(0, top_in)
+    right_in = min(W - 1, right_in)
+    bottom_in = min(H - 1, bottom_in)
+
+    if right_in - left_in < 10 or bottom_in - top_in < 10:
+        return bgr
+
+    return bgr[top_in : bottom_in + 1, left_in : right_in + 1]
 
 
 # ---------- A) Panels by gutters (white margins) ----------
@@ -163,16 +250,23 @@ def panels_by_lines(img, white_gutters, min_area=25000, pad=6, merge_tol=12):
 
 # ---------- saving ----------
 def save_crop_jpg(img, box, out_dir, seq_idx, square=False,
-                  min_side=512, max_side=1024, jpg_quality=95):
+                  min_side=512, max_side=1024, jpg_quality=95,
+                  trim=True, trim_band_pct=0.12, trim_black_thr=None, trim_min_frac=0.20):
     x, y, w, h = box
     crop = img[y:y + h, x:x + w]
 
+    # NEW: trim inside the black frame (no outer white, no black stroke)
+    if trim:
+        crop = trim_inside_frame(crop, band_pct=trim_band_pct,
+                                 black_thr=trim_black_thr, min_frac=trim_min_frac)
+
     if square:
-        side = max(w, h)
+        Hc, Wc = crop.shape[:2]
+        side = max(Wc, Hc)
         canvas = np.full((side, side, 3), 255, np.uint8)
-        ox = (side - w) // 2
-        oy = (side - h) // 2
-        canvas[oy:oy + h, ox:ox + w] = crop
+        ox = (side - Wc) // 2
+        oy = (side - Hc) // 2
+        canvas[oy:oy + Hc, ox:ox + Wc] = crop
         crop = canvas
 
     H, W = crop.shape[:2]
@@ -231,6 +325,10 @@ def process_page(path, args, seq_start, page_idx):
             min_side=args.min_side,
             max_side=args.max_side,
             jpg_quality=args.jpg_quality,
+            trim=(not args.no_trim),
+            trim_band_pct=args.trim_band_pct,
+            trim_black_thr=args.trim_black_thr,
+            trim_min_frac=args.trim_min_frac,
         )
         seq += 1
     return seq, len(boxes)
@@ -254,12 +352,19 @@ def main():
     ap.add_argument("--white-v-min", type=int, default=180, help="HSV V min for white")
     ap.add_argument("--gutter-dilate", type=int, default=6, help="Thicken gutters (pixels)")
     ap.add_argument("--merge-tol", type=int, default=12, help="Hough lines merge tolerance")
+    # trim frame params
+    ap.add_argument("--no-trim", action="store_true", help="Disable inside-frame trimming")
+    ap.add_argument("--trim-band-pct", type=float, default=0.12, help="Search band near edges (0-1)")
+    ap.add_argument("--trim-black-thr", type=int, default=None, help="Gray threshold for frame; default = auto")
+    ap.add_argument("--trim-min-frac", type=float, default=0.20, help="Min dark fraction to accept a frame line")
 
     args = ap.parse_args()
 
     p = Path(args.input)
     if p.is_dir():
-        imgs = sorted([*p.glob("*.jpg"), *p.glob("*.jpeg"), *p.glob("*.png"), *p.glob("*.tif"), *p.glob("*.webp")])
+        imgs = sorted([
+            *p.glob("*.jpg"), *p.glob("*.jpeg"), *p.glob("*.png"), *p.glob("*.tif"), *p.glob("*.webp")
+        ])
     else:
         imgs = [p]
 
