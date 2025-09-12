@@ -6,8 +6,24 @@
 # doesn't include the outer white nor the black stroke.
 #
 # Usage examples:
-#   python juillard_panels_v3.py \
+#   python juillard_panels.py \
 #       "./pages" -o dataset --debug
+#
+# Preparation: before splitting the pages you may want to remove the balloons
+# using the Flux API (see examples/api_request.py).
+# Example:
+# for i in $(seq -w 1 30); do
+#   python examples/api_request.py \
+#     --input-image "inputpages/00${i}.jpg" \
+#     --output-image "noballoons/00${i}.png" \
+#     --prompt "Remove all speech balloons and their lettering. Reconstruct the underlying art to match surrounding ink lines and screentones. Do not alter panel borders, characters, backgrounds, tones, or composition outside former balloon regions. Keep the style, line weight, hatching, and textures identical to the original page." \
+#     --no-prompt-upsampling \
+#     --output-format png \
+#     --seed 123456 \
+#     --safety-tolerance 6 \
+#     --timeout 40
+# done
+# Note: some may timeout because the input image contains inappropriate content.
 
 import cv2
 import numpy as np
